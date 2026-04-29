@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PostureAI — Smart Health Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════ NAVBAR ═══════════════════ -->
+<nav class="navbar">
+  <div class="nav-brand">
+    <span class="brand-icon">⬡</span>
+    <span class="brand-name">PostureAI</span>
+    <span class="brand-tag">HEALTH</span>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-tab="dashboard">Dashboard</button>
+    <button class="nav-tab" data-tab="camera">Live Scan</button>
+    <button class="nav-tab" data-tab="analytics">Analytics</button>
+    <button class="nav-tab" data-tab="setup">My Setup</button>
+    <button class="nav-tab" data-tab="ai-input">AI Consult</button>
+  </div>
+  <div class="nav-controls">
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+      <span class="theme-icon">◐</span>
+    </button>
+    <div class="status-dot" id="serverStatus" title="Server status"></div>
+  </div>
+</nav>
+
+<!-- ═══════════════════ HAMBURGER (mobile) ═══════════════════ -->
+<button class="hamburger" id="hamburger">☰</button>
+<div class="mobile-nav" id="mobileNav">
+  <button class="mob-tab active" data-tab="dashboard">🏠 Dashboard</button>
+  <button class="mob-tab" data-tab="camera">📷 Live Scan</button>
+  <button class="mob-tab" data-tab="analytics">📊 Analytics</button>
+  <button class="mob-tab" data-tab="setup">⚙️ My Setup</button>
+  <button class="mob-tab" data-tab="ai-input">🤖 AI Consult</button>
+</div>
+
+<!-- ═══════════════════ TABS ═══════════════════ -->
+<main class="main-content">
+
+  <!-- ──── DASHBOARD TAB ──── -->
+  <section class="tab-panel active" id="tab-dashboard">
+    <div class="section-header">
+      <h1>Health Dashboard</h1>
+      <p class="section-sub">Your posture at a glance</p>
+    </div>
+
+    <div class="dashboard-grid">
+      <!-- Score Ring -->
+      <div class="card score-card">
+        <div class="score-ring-wrap">
+          <svg class="score-ring" viewBox="0 0 120 120">
+            <circle class="ring-bg" cx="60" cy="60" r="50" />
+            <circle class="ring-fill" id="dashRingFill" cx="60" cy="60" r="50"
+              stroke-dasharray="314" stroke-dashoffset="314" />
+          </svg>
+          <div class="score-center">
+            <span class="score-number" id="dashScore">—</span>
+            <span class="score-label">Score</span>
+          </div>
+        </div>
+        <div class="score-status" id="dashStatus">Start scanning</div>
+        <button class="btn-primary" onclick="switchTab('camera')">▶ Start Scan</button>
+      </div>
+
+      <!-- Stats row -->
+      <div class="card stat-card">
+        <div class="stat-icon">⏱</div>
+        <div class="stat-value" id="statSession">0m</div>
+        <div class="stat-label">Today's Session</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon">⚠</div>
+        <div class="stat-value" id="statBadTime">0m</div>
+        <div class="stat-label">Bad Posture Time</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon">📈</div>
+        <div class="stat-value" id="statImprove">—</div>
+        <div class="stat-label">vs Yesterday</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon">🔥</div>
+        <div class="stat-value" id="statStreak">0</div>
+        <div class="stat-label">Day Streak</div>
+      </div>
+
+      <!-- Quick tips -->
+      <div class="card tips-card">
+        <h3 class="card-title">Today's Tip</h3>
+        <div class="tip-content" id="dailyTip">Loading tip...</div>
+        <button class="btn-ghost" id="newTipBtn">New tip →</button>
+      </div>
+
+      <!-- Posture breakdown -->
+      <div class="card breakdown-card">
+        <h3 class="card-title">Posture Breakdown</h3>
+        <div class="breakdown-bars">
+          <div class="bar-row">
+            <span>Neck</span>
+            <div class="bar-track"><div class="bar-fill" id="barNeck" style="width:0%"></div></div>
+            <span class="bar-pct" id="barNeckPct">—</span>
+          </div>
+          <div class="bar-row">
+            <span>Shoulders</span>
+            <div class="bar-track"><div class="bar-fill" id="barShoulders" style="width:0%"></div></div>
+            <span class="bar-pct" id="barShouldersPct">—</span>
+          </div>
+          <div class="bar-row">
+            <span>Back</span>
+            <div class="bar-track"><div class="bar-fill" id="barBack" style="width:0%"></div></div>
+            <span class="bar-pct" id="barBackPct">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Weekly mini chart -->
+    <div class="card chart-card">
+      <div class="card-header-row">
+        <h3 class="card-title">This Week</h3>
+        <button class="btn-ghost" id="weeklyReportBtn">🤖 Generate AI Report</button>
+      </div>
+      <canvas id="weeklyChart" height="100"></canvas>
+    </div>
+
+    <!-- AI Weekly Report output -->
+    <div class="card ai-report-card hidden" id="weeklyReportCard">
+      <div class="card-header-row">
+        <h3 class="card-title">🤖 AI Weekly Report</h3>
+        <button class="btn-ghost" onclick="document.getElementById('weeklyReportCard').classList.add('hidden')">✕</button>
+      </div>
+      <div class="ai-report-body" id="weeklyReportBody"></div>
+    </div>
+  </section>
+
+  <!-- ──── CAMERA TAB ──── -->
+  <section class="tab-panel" id="tab-camera">
+    <div class="section-header">
+      <h1>Live Posture Scan</h1>
+      <p class="section-sub">Real-time MediaPipe pose detection</p>
+    </div>
+
+    <div class="camera-layout">
+      <!-- Video panel -->
+      <div class="card camera-card">
+        <div class="video-wrap">
+          <video id="webcamVideo" autoplay muted playsinline></video>
+          <canvas id="poseCanvas"></canvas>
+          <div class="cam-overlay" id="camOverlay">
+            <div class="cam-placeholder">
+              <div class="cam-icon">📷</div>
+              <p>Camera not started</p>
+            </div>
+          </div>
+          <!-- Live score badge -->
+          <div class="live-badge hidden" id="liveBadge">
+            <span class="live-dot"></span> LIVE
+          </div>
+          <div class="score-badge hidden" id="scoreBadge">
+            <span id="liveBadgeScore">—</span>
+          </div>
+        </div>
+
+        <div class="cam-controls">
+          <button class="btn-primary" id="startCamBtn">▶ Start Camera</button>
+          <button class="btn-danger hidden" id="stopCamBtn">■ Stop</button>
+          <button class="btn-ghost" id="toggleSkeletonBtn">🦴 Skeleton ON</button>
+          <button class="btn-ghost" id="snapshotBtn">📸 Snapshot</button>
+        </div>
+
+        <!-- Alert banner -->
+        <div class="posture-alert hidden" id="postureAlert">
+          <span class="alert-icon">⚠️</span>
+          <span id="alertMsg">Bad posture detected!</span>
+        </div>
+      </div>
+
+      <!-- Metrics panel -->
+      <div class="metrics-panel">
+        <div class="card metric-card">
+          <div class="metric-label">Live Score</div>
+          <div class="metric-value accent" id="liveScore">—</div>
+        </div>
+        <div class="card metric-card">
+          <div class="metric-label">Neck Angle</div>
+          <div class="metric-value" id="neckAngle">—°</div>
+        </div>
+        <div class="card metric-card">
+          <div class="metric-label">Shoulder Balance</div>
+          <div class="metric-value" id="shoulderBalance">—</div>
+        </div>
+        <div class="card metric-card">
+          <div class="metric-label">Back Align</div>
+          <div class="metric-value" id="backAlign">—</div>
+        </div>
+        <div class="card metric-card">
+          <div class="metric-label">Status</div>
+          <div class="metric-value" id="liveStatus">—</div>
+        </div>
+        <div class="card metric-card">
+          <div class="metric-label">Bad Posture Timer</div>
+          <div class="metric-value" id="badTimer">0s</div>
+        </div>
+
+        <!-- Suggestions -->
+        <div class="card suggestions-card">
+          <h4 class="card-title">Live Suggestions</h4>
+          <ul class="suggestion-list" id="suggestionList">
+            <li class="suggestion-empty">Start the camera to get feedback</li>
+          </ul>
+        </div>
+
+        <!-- Session stats -->
+        <div class="card session-info-card">
+          <h4 class="card-title">Session</h4>
+          <div class="session-row"><span>Duration</span><span id="sessionDur">0s</span></div>
+          <div class="session-row"><span>Avg Score</span><span id="sessionAvg">—</span></div>
+          <div class="session-row"><span>Good %</span><span id="sessionGoodPct">—</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ──── ANALYTICS TAB ──── -->
+  <section class="tab-panel" id="tab-analytics">
+    <div class="section-header">
+      <h1>Posture Analytics</h1>
+      <p class="section-sub">7-day history and trends</p>
+    </div>
+
+    <div class="analytics-grid">
+      <div class="card">
+        <h3 class="card-title">Daily Average Score</h3>
+        <canvas id="dailyScoreChart" height="140"></canvas>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Good vs Bad Posture Time</h3>
+        <canvas id="goodBadChart" height="140"></canvas>
+      </div>
+      <div class="card analytics-summary-card">
+        <h3 class="card-title">7-Day Summary</h3>
+        <div id="analyticsSummary" class="analytics-summary"></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Score Distribution</h3>
+        <canvas id="distributionChart" height="140"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header-row">
+        <h3 class="card-title">Session History</h3>
+        <button class="btn-danger-sm" id="clearHistoryBtn">🗑 Clear All Data</button>
+      </div>
+      <div class="history-table-wrap">
+        <table class="history-table">
+          <thead>
+            <tr><th>Date</th><th>Session</th><th>Avg Score</th><th>Bad Time</th><th>Status</th></tr>
+          </thead>
+          <tbody id="historyTableBody">
+            <tr><td colspan="5" class="empty-row">No sessions recorded yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ──── SETUP TAB ──── -->
+  <section class="tab-panel" id="tab-setup">
+    <div class="section-header">
+      <h1>My Ergonomic Setup</h1>
+      <p class="section-sub">Get personalized desk and posture recommendations</p>
+    </div>
+
+    <div class="setup-grid">
+      <div class="card setup-form-card">
+        <h3 class="card-title">Your Profile</h3>
+        <div class="form-group">
+          <label>Height (cm)</label>
+          <input type="number" id="userHeight" placeholder="e.g. 175" min="100" max="250" />
+        </div>
+        <div class="form-group">
+          <label>Daily Work Hours</label>
+          <input type="number" id="workHours" placeholder="e.g. 8" min="1" max="16" />
+        </div>
+        <div class="form-group">
+          <label>Primary Device</label>
+          <select id="deviceType">
+            <option value="laptop">Laptop</option>
+            <option value="desktop">Desktop with Monitor</option>
+            <option value="tablet">Tablet</option>
+            <option value="phone">Phone (standing/desk)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Existing Pain Areas (optional)</label>
+          <input type="text" id="existingPain" placeholder="e.g. lower back, neck" />
+        </div>
+        <button class="btn-primary" id="getSetupBtn">🤖 Get AI Recommendations</button>
+      </div>
+
+      <div class="card setup-result-card">
+        <h3 class="card-title">Your Ergonomic Plan</h3>
+        <div id="setupResult" class="setup-result-body">
+          <p class="empty-hint">Fill in your profile and click "Get AI Recommendations" to receive your personalized ergonomic setup guide.</p>
+        </div>
+        <div class="spinner hidden" id="setupSpinner"><div class="spin"></div></div>
+      </div>
+
+      <!-- Quick reference -->
+      <div class="card quick-ref-card">
+        <h3 class="card-title">Quick Reference</h3>
+        <div class="ref-items">
+          <div class="ref-item">
+            <div class="ref-icon">💺</div>
+            <div>
+              <strong>Chair Height</strong>
+              <p>Feet flat, knees at 90°, thighs parallel to floor</p>
+            </div>
+          </div>
+          <div class="ref-item">
+            <div class="ref-icon">🖥</div>
+            <div>
+              <strong>Monitor Distance</strong>
+              <p>Arm's length away (50–70 cm), top of screen at eye level</p>
+            </div>
+          </div>
+          <div class="ref-item">
+            <div class="ref-icon">⌨️</div>
+            <div>
+              <strong>Keyboard</strong>
+              <p>Elbows at 90°, wrists neutral, keyboard slightly tilted</p>
+            </div>
+          </div>
+          <div class="ref-item">
+            <div class="ref-icon">💡</div>
+            <div>
+              <strong>Lighting</strong>
+              <p>No glare, natural light from side, not behind screen</p>
+            </div>
+          </div>
+          <div class="ref-item">
+            <div class="ref-icon">⏰</div>
+            <div>
+              <strong>Break Rule</strong>
+              <p>20-20-20: Every 20 min, look 20ft away for 20 sec</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ──── AI CONSULT TAB ──── -->
+  <section class="tab-panel" id="tab-ai-input">
+    <div class="section-header">
+      <h1>AI Health Consult</h1>
+      <p class="section-sub">Describe your issue, get expert posture advice</p>
+    </div>
+
+    <div class="ai-consult-layout">
+      <div class="card ai-input-card">
+        <h3 class="card-title">Describe Your Problem</h3>
+        <textarea
+          id="aiConsultInput"
+          placeholder="E.g. My neck has been hurting for 2 hours, I've been working on my laptop all day and my upper back feels stiff..."
+          rows="6"
+        ></textarea>
+        <div class="ai-input-controls">
+          <div class="char-count" id="charCount">0 / 500</div>
+          <button class="btn-primary" id="aiConsultBtn">🤖 Get AI Advice</button>
+        </div>
+        <div class="quick-prompts">
+          <p class="quick-label">Quick prompts:</p>
+          <button class="quick-chip" data-prompt="My neck hurts after long hours on laptop">Neck pain</button>
+          <button class="quick-chip" data-prompt="My lower back is sore from sitting all day">Back pain</button>
+          <button class="quick-chip" data-prompt="My shoulders feel uneven and stiff">Shoulder issues</button>
+          <button class="quick-chip" data-prompt="I've been sitting for 5 hours straight, what should I do?">Fatigue relief</button>
+          <button class="quick-chip" data-prompt="Suggest stretching exercises for desk workers">Exercises</button>
+          <button class="quick-chip" data-prompt="How do I set up my desk ergonomically?">Desk setup</button>
+        </div>
+      </div>
+
+      <div class="card ai-response-card">
+        <div class="card-header-row">
+          <h3 class="card-title">AI Response</h3>
+          <span class="issue-tag hidden" id="issueTag"></span>
+        </div>
+        <div class="spinner hidden" id="consultSpinner"><div class="spin"></div></div>
+        <div id="aiResponseBody" class="ai-response-body">
+          <p class="empty-hint">Your personalized advice will appear here.</p>
+        </div>
+        <div class="response-actions hidden" id="responseActions">
+          <button class="btn-ghost" id="copyResponseBtn">📋 Copy</button>
+          <button class="btn-ghost" id="saveResponseBtn">💾 Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Saved responses -->
+    <div class="card saved-responses-card">
+      <div class="card-header-row">
+        <h3 class="card-title">Saved Advice</h3>
+        <button class="btn-ghost-sm" id="clearSavedBtn">Clear all</button>
+      </div>
+      <div id="savedResponsesList" class="saved-list">
+        <p class="empty-hint">No saved advice yet. Save responses to reference later.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══════════════════ FLOATING CHATBOT ═══════════════════ -->
+<div class="chatbot-fab" id="chatFab" title="PostureAI Chat">
+  <span class="fab-icon">💬</span>
+  <span class="fab-badge hidden" id="fabBadge">1</span>
+</div>
+
+<div class="chatbot-panel hidden" id="chatPanel">
+  <div class="chat-header">
+    <div class="chat-title">
+      <span class="chat-avatar">⬡</span>
+      <div>
+        <div class="chat-name">PostureAI</div>
+        <div class="chat-subtitle">Health Assistant</div>
+      </div>
+    </div>
+    <div class="chat-header-actions">
+      <button class="chat-btn" id="clearChatBtn" title="Clear chat">🗑</button>
+      <button class="chat-btn" id="closeChatBtn" title="Close">✕</button>
+    </div>
+  </div>
+
+  <div class="quick-chat-btns">
+    <button class="qchat-btn" data-msg="How do I fix my posture right now?">Fix posture</button>
+    <button class="qchat-btn" data-msg="Suggest desk ergonomics setup">Desk setup</button>
+    <button class="qchat-btn" data-msg="Give me 3 quick posture exercises">Exercises</button>
+    <button class="qchat-btn" data-msg="My neck hurts from screen time">Neck pain</button>
+  </div>
+
+  <div class="chat-messages" id="chatMessages">
+    <div class="chat-msg bot">
+      <span class="msg-avatar">⬡</span>
+      <div class="msg-bubble">
+        Hi! I'm PostureAI 👋 I can help with posture correction, ergonomic setup, and pain relief. What's bothering you today?
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-input-row">
+    <input type="text" id="chatInput" placeholder="Ask anything about posture..." maxlength="300" />
+    <button class="send-btn" id="sendChatBtn">➤</button>
+  </div>
+</div>
+
+<!-- ═══════════════════ POSTURE ALERT MODAL ═══════════════════ -->
+<div class="modal-overlay hidden" id="alertModal">
+  <div class="modal-box">
+    <div class="modal-icon">⚠️</div>
+    <h2>Posture Warning!</h2>
+    <p id="modalMsg">You've had bad posture for over 30 seconds. Time to correct it!</p>
+    <div class="modal-tips" id="modalTips"></div>
+    <button class="btn-primary" onclick="document.getElementById('alertModal').classList.add('hidden')">Got it, fixing now!</button>
+  </div>
+</div>
+
+<!-- ═══════════════════ TOAST ═══════════════════ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
